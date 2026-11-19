@@ -2,13 +2,13 @@
 
 Telegram alerts that help time a monthly ETF purchase within a fixed buy window.
 
-| | |
-|---|---|
-| **Instrument** | iShares Core MSCI World UCITS ETF (Acc). Ticker **IWDA**, ISIN IE00B4L5Y983 |
-| **Exchange** | Euronext Amsterdam (`IWDA.AS` on Yahoo Finance), priced in EUR |
-| **Strategy** | Dollar-cost averaging: one buy per month |
-| **Output** | Telegram messages: window opened, dip alerts, a fallback "buy now", run failures |
-| **Runs on** | GitHub Actions (free), once per trading day at about 15:00 Amsterdam time |
+|                |                                                                                  |
+| -------------- | -------------------------------------------------------------------------------- |
+| **Instrument** | iShares Core MSCI World UCITS ETF (Acc). Ticker **IWDA**, ISIN IE00B4L5Y983      |
+| **Exchange**   | Euronext Amsterdam (`IWDA.AS` on Yahoo Finance), priced in EUR                   |
+| **Strategy**   | Dollar-cost averaging: one buy per month                                         |
+| **Output**     | Telegram messages: window opened, dip alerts, a fallback "buy now", run failures |
+| **Runs on**    | GitHub Actions (free), once per trading day at about 15:00 Amsterdam time        |
 
 ---
 
@@ -19,6 +19,7 @@ I buy the same ETF every month. Each buy window runs from **the 15th to the 15th
 Nobody can know the cheapest day in advance. So the project doesn't try to predict. It watches the price each day and nudges me when the price is noticeably below recent levels. If that never happens, it makes sure I still buy before the window closes.
 
 ### In scope
+
 - Track one ETF (`IWDA.AS`, configurable).
 - Fixed calendar buy windows (15th → 15th).
 - Daily dip detection using two simple, explainable signals.
@@ -29,6 +30,7 @@ Nobody can know the cheapest day in advance. So the project doesn't try to predi
 - Hands-off hosting on GitHub Actions with state kept in the repo.
 
 ### Out of scope (deliberately)
+
 - **Placing trades.** The tool only notifies; I place the order with my broker myself.
 - **Backtesting or optimisation.** I chose not to backtest. The thresholds are sensible defaults, not proven optimal values (see [Limitations](#9-limitations--caveats)).
 - **Price prediction, ML, technical-analysis indicators** beyond the two signals below.
@@ -41,26 +43,30 @@ Nobody can know the cheapest day in advance. So the project doesn't try to predi
 ## 2. How it works
 
 ### Buy window
+
 - A window opens on the **15th** and closes on the **15th of the next month**. The closing 15th is the first day of the next window.
 - If the 15th falls on a weekend or holiday, the window still starts that day. The first check simply runs on the next trading day.
 
 ### Signals
+
 Each check computes, from today's live price:
 
-| Signal | Definition | Fires when |
-|---|---|---|
-| **A: below window high** | `1 − price / highest close since the window opened (including today)` | ≥ 2% |
-| **B: below 20-day average** | `1 − price / mean of the last 20 daily closes (before today)` | ≥ 2% |
+| Signal                      | Definition                                                            | Fires when |
+| --------------------------- | --------------------------------------------------------------------- | ---------- |
+| **A: below window high**    | `1 − price / highest close since the window opened (including today)` | ≥ 2%       |
+| **B: below 20-day average** | `1 − price / mean of the last 20 daily closes (before today)`         | ≥ 2%       |
 
 The signals are combined with **OR**: either one firing triggers an alert. If **both** fire, the alert is marked **"Strong dip"**.
 
 ### Escalation
+
 The dip **level** is `floor(max(A, B) / 2%)`, so level 1 means ≥2% down, level 2 means ≥4%, level 3 means ≥6%, and so on.
 
 - The first alert in a window is sent at level ≥ 1.
 - Later alerts in the same window are sent **only when the level goes higher** than the last alert. The same dip never triggers a second alert.
 
 ### Fallback
+
 If **no** dip alert has been sent by the **3rd-last Euronext trading day before the window closes**, a "No dip this window, buy now" message is sent.
 
 - It is sent once per window.
@@ -68,9 +74,11 @@ If **no** dip alert has been sent by the **3rd-last Euronext trading day before 
 - It is skipped if a dip alert already went out in this window, since I've presumably bought.
 
 ### Window-opened message
+
 On the first trading day of each window, a short message gives the window dates and the fallback deadline. It also works as a monthly sign that the bot is alive.
 
 ### Daily flow
+
 ```
 cron (weekdays 13:30 UTC)
   └─ Euronext closed today? ─ yes → exit
@@ -118,18 +126,18 @@ Window closes 15 Dec
 
 ## 4. Design decisions
 
-| Decision | Choice | Why |
-|---|---|---|
-| Scope | Live notifier only | Quick to build and useful immediately; a backtest can come later. |
+| Decision    | Choice                                               | Why                                                                                                                                                    |
+| ----------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Scope       | Live notifier only                                   | Quick to build and useful immediately; a backtest can come later.                                                                                      |
 | Dip signals | Window high **and** 20-day average, combined with OR | The window high catches "cheaper than earlier this month"; the average catches "cheaper than the recent trend", which works even on day 1 of a window. |
-| Threshold | 2%, escalating in 2% steps | IWDA moves about 0.8% on a typical day; a 2% dip happens in most months, so the fallback is the exception rather than the norm. |
-| Escalation | Alert again only when the dip reaches a deeper tier | You still hear about a better price, without being spammed. |
-| Fallback | 3 trading days before the 15th | Allows for weekends and holidays and leaves time to place the order. |
-| Check time | ~15:00 Amsterdam, once a day | Uses the intraday price, so I can still buy the same day; once a day avoids noise. |
-| Channel | Telegram bot | Free, instant phone push, one HTTP call. |
-| Hosting | GitHub Actions | Free and serverless. The monthly state commit counts as activity, so GitHub's 60-day inactivity pause on scheduled workflows never kicks in. |
-| State | `state.json` committed back to the repo | No database needed; the history is visible in git. |
-| Language | Python 3.12 + yfinance, pandas, exchange_calendars | Best free tooling for EU ETF prices and exchange holidays. |
+| Threshold   | 2%, escalating in 2% steps                           | IWDA moves about 0.8% on a typical day; a 2% dip happens in most months, so the fallback is the exception rather than the norm.                        |
+| Escalation  | Alert again only when the dip reaches a deeper tier  | You still hear about a better price, without being spammed.                                                                                            |
+| Fallback    | 3 trading days before the 15th                       | Allows for weekends and holidays and leaves time to place the order.                                                                                   |
+| Check time  | ~15:00 Amsterdam, once a day                         | Uses the intraday price, so I can still buy the same day; once a day avoids noise.                                                                     |
+| Channel     | Telegram bot                                         | Free, instant phone push, one HTTP call.                                                                                                               |
+| Hosting     | GitHub Actions                                       | Free and serverless. The monthly state commit counts as activity, so GitHub's 60-day inactivity pause on scheduled workflows never kicks in.           |
+| State       | `state.json` committed back to the repo              | No database needed; the history is visible in git.                                                                                                     |
+| Language    | Python 3.12 + yfinance, pandas, exchange_calendars   | Best free tooling for EU ETF prices and exchange holidays.                                                                                             |
 
 ---
 
@@ -153,6 +161,7 @@ requirements.txt # pinned dependencies
 ```
 
 ### State (`state.json`)
+
 ```json
 {
   "window_start": "2026-11-15",
@@ -161,6 +170,7 @@ requirements.txt # pinned dependencies
   "opened_sent": true
 }
 ```
+
 State resets automatically when a new window starts.
 
 ---
@@ -170,7 +180,7 @@ State resets automatically when a new window starts.
 1. **Create the bot**: message [@BotFather](https://t.me/BotFather), run `/newbot`, and copy the token.
 2. **Get your chat id**: send your bot any message, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` and copy `message.chat.id`.
 3. **Create the repo**: fork or push this project to your own GitHub repo (public or private), then add the secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` (Settings → Secrets and variables → Actions).
-4. **Test it**: Actions → *daily-check* → *Run workflow*. You should get the "window opened" message, and a `state.json` commit should appear.
+4. **Test it**: Actions → _daily-check_ → _Run workflow_. You should get the "window opened" message, and a `state.json` commit should appear.
 
 After that it runs by itself every weekday.
 
@@ -186,11 +196,11 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m trade_notify.main --dry-run --state /tmp/s.json   # use a scratch state file
 ```
 
-| Flag | Effect |
-|---|---|
-| `--dry-run` | Prints messages; doesn't send them or write state |
+| Flag                | Effect                                                           |
+| ------------------- | ---------------------------------------------------------------- |
+| `--dry-run`         | Prints messages; doesn't send them or write state                |
 | `--date YYYY-MM-DD` | Runs as if it were that day, using that day's close as the price |
-| `--state PATH` | Uses a different state file |
+| `--state PATH`      | Uses a different state file                                      |
 
 ---
 
@@ -198,15 +208,15 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 Everything is in [trade_notify/config.py](trade_notify/config.py):
 
-| Setting | Default | Meaning |
-|---|---|---|
-| `TICKER` | `IWDA.AS` | Yahoo Finance ticker |
-| `EXCHANGE` | `XAMS` | exchange_calendars code used for trading days |
-| `TZ` | `Europe/Amsterdam` | Timezone for "today" |
-| `WINDOW_DAY` | `15` | Day of the month the window opens and closes |
-| `DIP_STEP` | `0.02` | First alert threshold and escalation step |
-| `MA_DAYS` | `20` | Moving-average length in trading days |
-| `DEADLINE_TRADING_DAYS` | `3` | Fallback fires this many trading days before the window closes |
+| Setting                 | Default            | Meaning                                                        |
+| ----------------------- | ------------------ | -------------------------------------------------------------- |
+| `TICKER`                | `IWDA.AS`          | Yahoo Finance ticker                                           |
+| `EXCHANGE`              | `XAMS`             | exchange_calendars code used for trading days                  |
+| `TZ`                    | `Europe/Amsterdam` | Timezone for "today"                                           |
+| `WINDOW_DAY`            | `15`               | Day of the month the window opens and closes                   |
+| `DIP_STEP`              | `0.02`             | First alert threshold and escalation step                      |
+| `MA_DAYS`               | `20`               | Moving-average length in trading days                          |
+| `DEADLINE_TRADING_DAYS` | `3`                | Fallback fires this many trading days before the window closes |
 
 The run time is set by the cron line in [check.yml](.github/workflows/check.yml): `30 13 * * 1-5` UTC, which is 14:30 CET in winter and 15:30 CEST in summer.
 
