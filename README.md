@@ -179,7 +179,7 @@ State resets automatically when a new window starts.
 
 1. **Create the bot**: message [@BotFather](https://t.me/BotFather), run `/newbot`, and copy the token.
 2. **Get your chat id**: send your bot any message, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` and copy `message.chat.id`.
-3. **Create the repo**: fork or push this project to your own GitHub repo (public or private), then add the secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` (Settings → Secrets and variables → Actions).
+3. **Create the repo**: fork or push this project to your own GitHub repo (public or private), then add the secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` (Settings → Secrets and variables → Actions). To notify more than one person, have each of them message the bot, get their chat id the same way, and set `TELEGRAM_CHAT_ID` to a comma-separated list (e.g. `111111111,222222222`). Run-failure pings go only to the first id.
 4. **Test it**: Actions → _daily-check_ → _Run workflow_. You should get the "window opened" message, and a `state.json` commit should appear.
 
 After that it runs by itself every weekday.

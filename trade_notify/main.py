@@ -83,7 +83,13 @@ def main() -> None:
         return
 
     st = state_mod.load(args.state)
-    closes, price = prices.fetch(today)
+    try:
+        closes, price = prices.fetch(today)
+    except prices.PriceUnavailable as e:
+        # Usually a delayed cron run that slipped past midnight, before Euronext opens.
+        # Skip without touching state; the next run catches up (fallback included).
+        print(f"{today}: skipping, {e}")
+        return
     sig = compute(closes, price, window.window_start(today))
     print(
         f"{today}: price {price:.2f} high {sig.window_high:.2f} ({_pct(sig.dd_high)}) "
